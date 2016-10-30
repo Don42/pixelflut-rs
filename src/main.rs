@@ -1,53 +1,89 @@
 extern crate rand;
-extern crate piston_window;
-extern crate sdl2_window;
+extern crate piston;
+extern crate graphics;
+extern crate glutin_window;
+extern crate opengl_graphics;
 extern crate image as im;
 
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self,Sender,Receiver};
 use std::{time, thread};
 
-use piston_window::*;
-use sdl2_window::Sdl2Window;
+use rand::Rng;
+use piston::window::WindowSettings;
+use piston::event_loop::*;
+use piston::input::*;
+use glutin_window::GlutinWindow as Window;
+use opengl_graphics::{ GlGraphics, OpenGL, TextureSettings };
 
-type FrameBuffer = Arc<Mutex<im::ImageBuffer<im::Rgba<u8>, Vec<u8>>>>;
+
+type FrameBuffer = Arc<Mutex<im::RgbaImage>>;
+
+struct App {
+	gl: GlGraphics,
+    frame_buffer: FrameBuffer,
+}
+
+impl App {
+	fn render(&mut self, args: &RenderArgs) {
+
+        let frame_buffer = self.frame_buffer.lock().unwrap();
+
+		const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+        let mut  texture = opengl_graphics::Texture::from_image(
+            &frame_buffer,
+            &TextureSettings::new());
+		self.gl.draw(args.viewport(), |c, gl| {
+			graphics::clear(BLACK, gl);
+            texture.update(&frame_buffer);
+            graphics::image(&texture, c.transform, gl);
+		});
+    }
+
+	fn update(&mut self, args: &UpdateArgs) {
+	}
+}
 
 fn render(tx: Sender<Command>, frame_buffer: FrameBuffer) {
 
 	let opengl = OpenGL::V3_2;
-    let mut window: PistonWindow<Sdl2Window> = WindowSettings::new("piston", [512; 2])
+    let mut window: Window = WindowSettings::new("piston", [512; 2])
 		.exit_on_esc(true)
 		.opengl(opengl)
         .build()
         .unwrap();
-	window.set_max_fps(30);
-	window.set_ups(30);
 
-	let mut texture = Texture::from_image(&mut window.factory,
-		&frame_buffer.lock().unwrap(),
-		&TextureSettings::new()).unwrap();
+	let mut app = App {
+        gl: GlGraphics::new(opengl),
+        frame_buffer: frame_buffer,
+        };
 
-    while let Some(e) = window.next() {
-		if let Event::Render(_) = e {
-			texture.update(&mut window.encoder, &frame_buffer.lock().unwrap()).unwrap();
 
-			window.draw_2d(&e, |c, g| {
-				// clear([0.0, 0.0, 0.0, 1.0], g);
-				image(&texture, c.transform, g);
-			});
+	let mut events = window.events();
+    while let Some(e) = events.next(&mut window) {
+		if let Some(r) = e.render_args() {
+			app.render(&r);
 		}
     }
     tx.send(Command::Shutdown).unwrap();
 }
 
 fn paint(frame_buffer: FrameBuffer) {
-    let sleep_time = time::Duration::from_millis(20);
-	let mut x: u32 = 0;
+    let sleep_time = time::Duration::from_millis(2);
+
+    const CYAN: [u8; 4] = [0, 255, 255, 255];
+
+	let mut i: u32 = 0;
+	let mut rng = rand::thread_rng();
     loop {
         thread::sleep(sleep_time);
-		frame_buffer.lock().unwrap().put_pixel(x, x+15,
-			im::Rgba([0, 255, 255, 255]));
-		x = (x + 1) % 1024;
+		let mut fb = frame_buffer.lock().unwrap();
+        let (width, height) = fb.dimensions();
+        let (x, y) = (rng.gen::<u32>() % width, rng.gen::<u32>() % height);
+
+        fb.put_pixel(x, y,
+			im::Rgba([(x % 255) as u8, (y % 255) as u8, rng.gen(), 255]));
+		i = (i + 1) % std::cmp::min(width, height);
     }
 }
 
@@ -56,7 +92,7 @@ enum Command {
 }
 
 fn main() {
-    let frame_buffer: FrameBuffer = Arc::new(Mutex::new(im::ImageBuffer::new(600, 600)));
+    let frame_buffer: FrameBuffer = Arc::new(Mutex::new(im::ImageBuffer::new(1366, 768)));
     let (tx, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
 
     let tx_ref = tx.clone();

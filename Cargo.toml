@@ -4,7 +4,9 @@ version = "0.1.0"
 authors = ["Marco 'don' Kaulea <DonMarco42@gmail.com>"]
 
 [dependencies]
-rand = "0.3.14"
-piston_window = "0.56.0"
+rand = "0.3.0"
 image = "0.10.0"
-pistoncore-sdl2_window = "0.36.0"
+piston = "0.26.0"
+piston2d-graphics = "0.18.0"
+pistoncore-glutin_window = "0.31.0"
+piston2d-opengl_graphics = "0.35.0"
