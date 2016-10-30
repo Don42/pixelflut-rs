@@ -1,0 +1,9 @@
+[package]
+name = "pixelflut-rs"
+version = "0.1.0"
+authors = ["Marco 'don' Kaulea <DonMarco42@gmail.com>"]
+
+[dependencies]
+rand = "0.3.14"
+piston_window = "0.56.0"
+image = "0.10.0"
