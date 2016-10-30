@@ -7,3 +7,4 @@ authors = ["Marco 'don' Kaulea <DonMarco42@gmail.com>"]
 rand = "0.3.14"
 piston_window = "0.56.0"
 image = "0.10.0"
+pistoncore-sdl2_window = "0.36.0"
