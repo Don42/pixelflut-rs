@@ -43,6 +43,10 @@ impl Pixel {
             a : 255,
         }
     }
+
+    fn is_on_canvas(&self, width: u32, height: u32) -> bool {
+        (self.x as u32) < width && (self.y as u32) < height
+    }
 }
 
 
@@ -104,12 +108,13 @@ fn handle_client(mut stream: TcpStream, frame_buffer: FrameBuffer) {
 		match res {
 			Ok(_) => {
                 let pixel = Pixel::from_slice(&net_buffer);
-                println!("{:?}", pixel);
                 let mut fb = frame_buffer.lock().unwrap();
                 let (width, height) = fb.dimensions();
 
-                fb.put_pixel((pixel.x as u32 % width), (pixel.y as u32 % height),
+                if pixel.is_on_canvas(width, height) {
+                    fb.put_pixel((pixel.x as u32), (pixel.y as u32),
                              im::Rgba([pixel.r, pixel.g, pixel.b, pixel.a]));
+                };
 
 			},
 			Err(_) => {
