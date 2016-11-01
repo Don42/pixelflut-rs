@@ -73,7 +73,7 @@ impl App {
     fn update(&mut self, args: &UpdateArgs) {}
 }
 
-fn render(tx: Sender<Command>, frame_buffer: FrameBuffer) {
+fn renderer(tx: Sender<Command>, frame_buffer: FrameBuffer) {
 
     let opengl = OpenGL::V3_2;
     let mut window: Window = WindowSettings::new("piston", [512; 2])
@@ -158,7 +158,7 @@ fn main() {
     let tx_ref = tx.clone();
     let buffer_ref = frame_buffer.clone();
     thread::spawn(move || {
-        render(tx_ref, buffer_ref);
+        renderer(tx_ref, buffer_ref);
     });
 
 
