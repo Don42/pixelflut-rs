@@ -100,6 +100,7 @@ fn render(tx: Sender<Command>, frame_buffer: FrameBuffer) {
 
 fn handle_client(mut stream: TcpStream, frame_buffer: FrameBuffer) {
     use std::io::Read;
+    use std::io::ErrorKind;
     loop {
         let mut net_buffer: [u8; 7] = [0; 7];
         let res = stream.read_exact(&mut net_buffer);
@@ -116,21 +117,30 @@ fn handle_client(mut stream: TcpStream, frame_buffer: FrameBuffer) {
                 };
 
             }
-            Err(_) => {
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                println!("Connection blocked: {:?}", e);
                 break;
             }
-
+            Err(e) => {
+                println!("Connection error: {:?}", e);
+                println!("Error Kind {:?}", e.kind());
+                break;
+            }
         }
     }
 }
 
 fn listener(frame_buffer: FrameBuffer) {
     let listener = TcpListener::bind("127.0.0.1:1234").unwrap();
+    let timeout = Some(std::time::Duration::new(5, 0));
     for stream in listener.incoming() {
         let buffer_ref = frame_buffer.clone();
         match stream {
             Ok(stream) => {
-                thread::spawn(move || handle_client(stream, buffer_ref));
+                thread::spawn(move || {
+                    stream.set_read_timeout(timeout).unwrap();
+                    handle_client(stream, buffer_ref)
+                });
             }
             Err(_) => panic!("Connection failed"),
         }
