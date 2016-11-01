@@ -30,7 +30,7 @@ struct Pixel {
 }
 
 impl Pixel {
-    fn from_slice(buffer: &[u8]) -> Pixel {
+    fn from_rgb_slice(buffer: &[u8]) -> Pixel {
         use std::io::Cursor;
         use byteorder::{NetworkEndian, ReadBytesExt};
         let mut rdr = Cursor::new(buffer);
@@ -41,6 +41,20 @@ impl Pixel {
             g: rdr.read_u8().unwrap(),
             b: rdr.read_u8().unwrap(),
             a: 255,
+        }
+    }
+
+    fn from_rgba_slice(buffer: &[u8]) -> Pixel {
+        use std::io::Cursor;
+        use byteorder::{NetworkEndian, ReadBytesExt};
+        let mut rdr = Cursor::new(buffer);
+        Pixel {
+            x: rdr.read_u16::<NetworkEndian>().unwrap(),
+            y: rdr.read_u16::<NetworkEndian>().unwrap(),
+            r: rdr.read_u8().unwrap(),
+            g: rdr.read_u8().unwrap(),
+            b: rdr.read_u8().unwrap(),
+            a: rdr.read_u8().unwrap(),
         }
     }
 
@@ -98,36 +112,103 @@ fn renderer(tx: Sender<Command>, frame_buffer: FrameBuffer) {
 }
 
 
-fn handle_client(mut stream: TcpStream, frame_buffer: FrameBuffer) {
-    use std::io::Read;
-    use std::io::ErrorKind;
-    loop {
-        let mut net_buffer: [u8; 7] = [0; 7];
-        let res = stream.read_exact(&mut net_buffer);
-        match res {
-            Ok(_) => {
-                let pixel = Pixel::from_slice(&net_buffer);
-                let mut fb = frame_buffer.lock().unwrap();
-                let (width, height) = fb.dimensions();
+fn put_pixel(pixel: Pixel, frame_buffer: &FrameBuffer) {
+    let mut fb = frame_buffer.lock().unwrap();
+    let (width, height) = fb.dimensions();
 
-                if pixel.is_on_canvas(width, height) {
-                    fb.put_pixel((pixel.x as u32),
-                                 (pixel.y as u32),
-                                 im::Rgba([pixel.r, pixel.g, pixel.b, pixel.a]));
-                };
+    if pixel.is_on_canvas(width, height) {
+        fb.put_pixel((pixel.x as u32),
+                     (pixel.y as u32),
+                     im::Rgba([pixel.r, pixel.g, pixel.b, pixel.a]));
+    };
+}
 
-            }
-            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                println!("Connection blocked: {:?}", e);
-                break;
-            }
-            Err(e) => {
-                println!("Connection error: {:?}", e);
-                println!("Error Kind {:?}", e.kind());
-                break;
-            }
+#[derive(Debug)]
+enum ConnectionType {
+    BinaryRGB,
+    BinaryRGBA,
+    ASCII,
+}
+
+impl ConnectionType {
+    fn net_loop(&self, stream: &mut TcpStream, frame_buffer: FrameBuffer) {
+        use std::io::Read;
+        use std::io::ErrorKind;
+        println!("ConnectionType: {:?}", self);
+        match *self {
+            ConnectionType::BinaryRGB => {
+                loop {
+                    let mut net_buffer: [u8; 7] = [0; 7];
+                    let res = stream.read_exact(&mut net_buffer);
+                    match res {
+                        Ok(_) => {
+                            let pixel = Pixel::from_rgb_slice(&net_buffer);
+                            put_pixel(pixel, &frame_buffer)
+                        }
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                            println!("Connection blocked: {:?}", e);
+                            break;
+                        }
+                        Err(e) => {
+                            println!("Connection error: {:?}", e);
+                            println!("Error Kind {:?}", e.kind());
+                            break;
+                        }
+                    }
+                }
+            },
+            ConnectionType::BinaryRGBA => {
+                loop {
+                    let mut net_buffer: [u8; 8] = [0; 8];
+                    let res = stream.read_exact(&mut net_buffer);
+                    match res {
+                        Ok(_) => {
+                            let pixel = Pixel::from_rgba_slice(&net_buffer);
+                            put_pixel(pixel, &frame_buffer)
+                        }
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                            println!("Connection blocked: {:?}", e);
+                            break;
+                        }
+                        Err(e) => {
+                            println!("Connection error: {:?}", e);
+                            println!("Error Kind {:?}", e.kind());
+                            break;
+                        }
+                    }
+                }
+            },
+            _ => {},
         }
     }
+}
+
+
+fn get_connection_type(stream: &mut TcpStream) -> std::io::Result<ConnectionType> {
+    use ConnectionType::*;
+    use std::io::{Error, ErrorKind};
+    use std::io::Read;
+    let mut type_buffer: [u8; 1] = [0; 1];
+    let res = stream.read_exact(&mut type_buffer);
+    match res {
+        Ok(_) => {
+            match type_buffer[0] {
+                0x00 => Ok(BinaryRGB),
+                0x01 => Ok(BinaryRGBA),
+                0x02 => Ok(ASCII),
+                _ => Err(Error::new(ErrorKind::Other, "Markerbyte not recognized")),
+                }
+        },
+        Err(e) => Err(e),
+    }
+}
+
+
+fn handle_client(mut stream: TcpStream, frame_buffer: FrameBuffer) {
+    use ConnectionType::*;
+
+    let connection_type = get_connection_type(&mut stream).unwrap_or(BinaryRGB);
+    connection_type.net_loop(&mut stream, frame_buffer);
 }
 
 fn listener(frame_buffer: FrameBuffer) {
