@@ -1,6 +1,6 @@
 [package]
 name = "pixelflut-rs"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Marco 'don' Kaulea <DonMarco42@gmail.com>"]
 
 [dependencies]
