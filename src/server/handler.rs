@@ -1,15 +1,15 @@
 use std;
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpStream;
 use std::io::{Read, ErrorKind};
 
 use pixelflut::{FrameBuffer, Pixel, put_pixel};
 
 
-trait TcpHandler {
+pub trait TcpHandler {
     fn net_loop(&self, mut stream: TcpStream, frame_buffer: FrameBuffer);
 }
 
-struct BinaryRGBHandler {}
+pub struct BinaryRGBHandler {}
 
 impl TcpHandler for BinaryRGBHandler {
     fn net_loop(&self, mut stream: TcpStream, frame_buffer: FrameBuffer) {
@@ -35,7 +35,7 @@ impl TcpHandler for BinaryRGBHandler {
     }
 }
 
-struct BinaryRGBAHandler {}
+pub struct BinaryRGBAHandler {}
 
 impl TcpHandler for BinaryRGBAHandler {
     fn net_loop(&self, mut stream: TcpStream, frame_buffer: FrameBuffer) {
@@ -64,13 +64,13 @@ impl TcpHandler for BinaryRGBAHandler {
 
 
 #[derive(Debug)]
-enum ConnectionType {
+pub enum ConnectionType {
     BinaryRGB,
     BinaryRGBA,
     ASCII,
 }
 
-fn get_connection_type(stream: &mut TcpStream) -> std::io::Result<self::ConnectionType> {
+pub fn get_connection_type(stream: &mut TcpStream) -> std::io::Result<self::ConnectionType> {
     use self::ConnectionType::*;
     use std::io::{Error, ErrorKind};
     use std::io::Read;
@@ -86,42 +86,5 @@ fn get_connection_type(stream: &mut TcpStream) -> std::io::Result<self::Connecti
             }
         }
         Err(e) => Err(e),
-    }
-}
-
-fn handle_connection(mut stream: TcpStream, frame_buffer: FrameBuffer) {
-    let connection_type = get_connection_type(&mut stream)
-        .unwrap_or(self::ConnectionType::BinaryRGB);
-    match connection_type {
-        self::ConnectionType::BinaryRGB => {
-            let handler = BinaryRGBHandler { };
-            handler.net_loop(stream, frame_buffer);
-        }
-
-        self::ConnectionType::BinaryRGBA => {
-            let handler = BinaryRGBAHandler{ };
-            handler.net_loop(stream, frame_buffer);
-        }
-
-        _ => {}
-    };
-}
-
-
-
-pub fn listener(frame_buffer: FrameBuffer) {
-    let listener = TcpListener::bind("127.0.0.1:1234").unwrap();
-    let timeout = Some(std::time::Duration::new(5, 0));
-    for stream in listener.incoming() {
-        let buffer_ref = frame_buffer.clone();
-        match stream {
-            Ok(stream) => {
-                std::thread::spawn(move || {
-                    stream.set_read_timeout(timeout).unwrap();
-                    handle_connection(stream, buffer_ref);
-                });
-            }
-            Err(_) => panic!("Connection failed"),
-        }
     }
 }
