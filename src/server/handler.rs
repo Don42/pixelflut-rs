@@ -6,7 +6,7 @@ use pixelflut::{FrameBuffer, Pixel, put_pixel};
 
 
 pub trait TcpHandler {
-    fn net_loop(&self, mut stream: TcpStream, frame_buffer: FrameBuffer);
+    fn net_loop(&self, stream: TcpStream, frame_buffer: FrameBuffer);
 }
 
 pub struct BinaryRGBHandler {}
