@@ -1,7 +1,7 @@
 [package]
 name = "pixelflut-rs"
 version = "0.2.0"
-authors = ["Marco 'don' Kaulea <DonMarco42@gmail.com>"]
+authors = ["Marco 'don' Kaulea <don@0xbeef.org>"]
 
 [dependencies]
 rand = "0.3.0"
